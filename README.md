@@ -54,6 +54,14 @@ print(my_password)
 kr.delete_password("my-password-item", "my-username")
 ```
 
+### Using a specific vault
+If you want to use a specific vault, edit your `keyringrc.cfg` file located in `keyring.util.platform_.config_root()` (typically `$env:LOCALAPPDATA\Python Keyring\keyringrc.cfg` on Windows) and add a section
+
+```
+[onepassword]
+vault=MySuperSecretVault
+```
+
 ## Caveats
 
 This fork was made for personal use and is not guaranteed to work in all cases. Please use with caution, as I can't take responsibility for any issues that may arise from using this package.

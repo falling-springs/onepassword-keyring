@@ -2,12 +2,34 @@ import shutil
 import subprocess
 import sys
 import shlex
+import os
+from configparser import ConfigParser
+from keyring.util.platform_ import config_root
 
 from keyring import backend
 from jaraco.classes import properties
 from keyring.errors import PasswordDeleteError
 
 PRIORITY = 10
+
+def get_keyring_config_value(section, key):
+    """
+    Retrieve a value from the keyring configuration file.
+
+    :param section: The section in the configuration file.
+    :param key: The key within the section.
+    :return: The value associated with the key, or None if not found.
+    """
+    config_path = os.path.join(config_root(), "keyringrc.cfg")
+    if not os.path.exists(config_path):
+        return None
+
+    config = ConfigParser()
+    config.read(config_path)
+
+    if config.has_section(section) and config.has_option(section, key):
+        return config.get(section, key)
+    return None
 
 
 def cli_exec(command: str):
@@ -70,9 +92,15 @@ class OnePasswordBackend(backend.KeyringBackend):
 
         return PRIORITY
 
+    def __init__(self):
+        super().__init__()
+        self.vault = get_keyring_config_value("onepassword", "vault")
+
     def get_password(self, service, username):
         _auth()
         command = f'op item get "{service}" --fields username,password --reveal'
+        if self.vault is not None:
+            command += f' --vault "{self.vault}"'
         stdout, stderr = cli_exec(command)
         if stderr:
             raise RuntimeError("Failed to get password: " + stderr)
@@ -86,9 +114,13 @@ class OnePasswordBackend(backend.KeyringBackend):
         _auth()
         if _item_exists(service, username):
             command = f'op item edit "{service}" username="{username}" password="{password}"'
+            if self.vault is not None:
+                command += f' --vault "{self.vault}"'
             stdout, stderr = cli_exec(command)
         else:
             command = f'op item create title="{service}" username="{username}" password="{password}" --category=login'
+            if self.vault is not None:
+                command += f' --vault "{self.vault}"'
             stdout, stderr = cli_exec(command)
         if stderr:
             raise RuntimeError("Failed to set password: " + stderr)
@@ -97,6 +129,8 @@ class OnePasswordBackend(backend.KeyringBackend):
         _auth()
         if _item_exists(service, username):
             command = f'op item delete "{service}"'
+            if self.vault is not None:
+                command += f' --vault "{self.vault}"'
             stdout, stderr = cli_exec(command)
             if stderr:
                 raise RuntimeError("Failed to delete password: " + stderr)
@@ -107,6 +141,8 @@ class OnePasswordBackend(backend.KeyringBackend):
     def get_otp(self, service, username):
         _auth()
         command = f'op item get "{service}" --otp --reveal'
+        if self.vault is not None:
+            command += f' --vault "{self.vault}"'
         stdout, stderr = cli_exec(command)
         if stderr:
             raise RuntimeError("Failed to get otp: " + stderr)
@@ -116,6 +152,8 @@ class OnePasswordBackend(backend.KeyringBackend):
     def get_item(self, service):
         _auth()
         command = f'op item get "{service}" --reveal'
+        if self.vault is not None:
+            command += f' --vault "{self.vault}"'
         stdout, stderr = cli_exec(command)
         if stderr:
             raise RuntimeError("Failed to get item: " + stderr)
@@ -127,6 +165,8 @@ class OnePasswordBackend(backend.KeyringBackend):
         """
         _auth()
         command = f'op item get "{service}" --reveal'
+        if self.vault is not None:
+            command += f' --vault "{self.vault}"'
         stdout, stderr = cli_exec(command)
         if stderr:
             raise RuntimeError("Failed to get item: " + stderr)
