@@ -2,6 +2,10 @@ import shutil
 import subprocess
 import sys
 import shlex
+import os
+import json
+from configparser import ConfigParser
+from keyring.util.platform_ import config_root
 
 from keyring import backend
 from jaraco.classes import properties
@@ -72,15 +76,20 @@ class OnePasswordBackend(backend.KeyringBackend):
 
     def get_password(self, service, username):
         _auth()
-        command = f'op item get "{service}" --fields username,password --reveal'
+        command = f'op item get "{service}" --fields label=username,label=password --reveal --format=json'
         stdout, stderr = cli_exec(command)
         if stderr:
             raise RuntimeError("Failed to get password: " + stderr)
         else:
-            fetched_username, password = stdout.strip().split(",")
-            if username != fetched_username:
-                raise RuntimeError(f"Username mismatch: Provided username was {username}, expected username was {fetched_username}")
-            return password.strip()
+            raw_data = json.loads(stdout)
+            data = {item['id']: item.get('value') for item in raw_data if item.get('id') in ("username", "password")}
+
+            if "username" not in data or "password" not in data:
+                raise RuntimeError("Missing expected field 'username' or 'password' in response data")
+
+            if username != data['username']:
+                raise RuntimeError(f"Username mismatch: Provided username was {username}, expected username was {data['username']}")
+            return data['password'].strip()
 
     def set_password(self, service, username, password):
         _auth()
